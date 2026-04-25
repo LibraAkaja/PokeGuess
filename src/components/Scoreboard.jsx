@@ -1,9 +1,15 @@
 const Scoreboard = ({ score, highScore }) => {
     return(
-        <>
-            <h2>Score: {score}</h2>
-            <h2>High Score: {highScore}</h2>
-        </>
+        <div className="scoreboard">
+            <div className="score-item">
+                <div className="score-label">Current Score</div>
+                <div className="score-value">{score}</div>
+            </div>
+            <div className="score-item">
+                <div className="score-label">High Score</div>
+                <div className="score-value">{highScore}</div>
+            </div>
+        </div>
     );
 };
 

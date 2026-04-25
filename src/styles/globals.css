@@ -1,0 +1,169 @@
+/* Pokemon-themed Global Styles */
+
+:root {
+  /* Pokemon Brand Colors */
+  --pokemon-red: #DC143C;
+  --pokemon-yellow: #FFD700;
+  --pokemon-blue: #4169E1;
+  --pokemon-dark-blue: #2C3E8F;
+  --pokemon-white: #FFFFFF;
+  --pokemon-black: #1a1a1a;
+  --pokemon-light-gray: #f5f5f5;
+  --pokemon-dark-gray: #2a2a2a;
+  
+  /* UI Colors */
+  --primary: var(--pokemon-red);
+  --secondary: var(--pokemon-yellow);
+  --tertiary: var(--pokemon-blue);
+  --bg-main: var(--pokemon-light-gray);
+  --bg-dark: var(--pokemon-dark-gray);
+  --text-light: var(--pokemon-black);
+  --text-dark: var(--pokemon-white);
+  --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-heavy: 0 12px 32px rgba(0, 0, 0, 0.2);
+  
+  /* Borders */
+  --border-radius: 12px;
+  --border-radius-lg: 16px;
+  --border-width: 3px;
+  
+  /* Fonts */
+  --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --font-heading: 'Arial Black', sans-serif;
+  
+  /* Transitions */
+  --transition-fast: 0.2s ease-in-out;
+  --transition-medium: 0.4s ease-in-out;
+  --transition-slow: 0.6s ease-in-out;
+  
+  font-family: var(--font-family);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-main: var(--pokemon-black);
+    --bg-dark: #0d0d0d;
+    --text-light: var(--pokemon-white);
+    --text-dark: var(--pokemon-black);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(135deg, #FFD700 0%, #DC143C 50%, #4169E1 100%);
+  min-height: 100vh;
+  color: var(--text-light);
+  font-family: var(--font-family);
+  line-height: 1.6;
+}
+
+#root {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 900;
+  color: var(--text-light);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 15px 0;
+}
+
+h1 {
+  font-size: 3rem;
+  color: var(--primary);
+  text-shadow: 3px 3px 0px var(--secondary);
+}
+
+h2 {
+  font-size: 2rem;
+  color: var(--primary);
+  text-shadow: 2px 2px 0px var(--secondary);
+}
+
+h3 {
+  font-size: 1.5rem;
+  color: var(--tertiary);
+}
+
+/* Paragraphs */
+p {
+  margin: 10px 0;
+  font-size: 1rem;
+}
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Links */
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--tertiary);
+  text-decoration: underline;
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-family);
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-medium);
+  border-radius: var(--border-radius);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--tertiary);
+}

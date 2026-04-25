@@ -1,6 +1,9 @@
 const Timer = ({label, time}) => {
     return (
-        <h3> {label}: {time === Infinity? "∞": `${time}s` } </h3>
+        <div className="timer-item">
+            <div className="timer-label">{label} Timer</div>
+            <div className="timer-value">{time === Infinity? "∞": `${time}s` }</div>
+        </div>
     );
 };
 

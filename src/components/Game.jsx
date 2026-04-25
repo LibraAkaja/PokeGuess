@@ -171,7 +171,8 @@ const Game = () => {
             <div className="game-container">
                 <div className="game-panel home-panel">
                     <h1 className="panel-title">PokéGuess</h1>
-                    <p className="subtitle">Guess the Pokémon stats</p>
+                    <p className="subtitle">Begin the Pokémon quiz!</p>
+                    <p style={{color:"black"}}>Choose your game mode:</p>
                     <div className="options-container">
                         <button className="option-button" onClick={() => {setGameType('name'); setPanel('sessionMode')}}>Name</button>
                         <button className="option-button" onClick={() => {setGameType('type'); setPanel('sessionMode')}}>Type</button>

@@ -1,6 +1,6 @@
 # PokéGuess 🎮
 
-A modern, interactive Pokémon guessing game built with React that tests your Pokémon knowledge through multiple challenging game modes.
+A modern, interactive Pokémon quiz game built with React that tests your Pokémon knowledge through multiple challenging game modes.
 
 ![PokéGuess Banner](/src/assets/PokeGame.png)
 

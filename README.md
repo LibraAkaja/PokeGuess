@@ -2,7 +2,7 @@
 
 A modern, interactive Pokémon guessing game built with React that tests your Pokémon knowledge through multiple challenging game modes.
 
-![PokéGuess Banner](https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png)
+![PokéGuess Banner](/src/assets/PokeGame.png)
 
 ## ✨ Features
 
@@ -33,7 +33,7 @@ A modern, interactive Pokémon guessing game built with React that tests your Po
 
 ## 🌐 Live Demo
 
-👉 https://your-deployment-link.vercel.app
+👉 https://poke-guess-game.vercel.app
 
 ## 🚀 Getting Started
 

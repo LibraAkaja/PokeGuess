@@ -184,6 +184,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **PokeAPI** for providing comprehensive Pokémon data
 - **Pokémon Company** for the amazing franchise
 - **React Community** for excellent documentation and tools
+- **RealFaviconGenerator** (https://realfavicongenerator.net/) for favicon generation
+- **TextStudio** (https://textstudio.com/) for banner and logo design
 
 ## ⚠️ Disclaimer
 

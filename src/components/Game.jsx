@@ -41,6 +41,7 @@ const Game = () => {
     const scoreRef = useRef(score);
     const gameOverRef = useRef(gameOver);
     const highScoreRef = useRef(highScore);
+    const livesRef = useRef(lives);
     const roundCountRef = useRef(roundCount);
     const timeoutLockRef = useRef(false);
     const handleTimeoutRef = useRef();
@@ -50,8 +51,9 @@ const Game = () => {
         scoreRef.current = score;
         gameOverRef.current = gameOver;
         highScoreRef.current = highScore;
+        livesRef.current = lives;
         roundCountRef.current = roundCount;
-    }, [score, gameOver, highScore, roundCount]);
+    }, [score, gameOver, highScore, lives, roundCount]);
 
     const capitalize = (text = '') => text.charAt(0).toUpperCase() + text.slice(1);
     
@@ -74,10 +76,12 @@ const Game = () => {
     };
 
     const handleTimeout = () => {
-        if (timeoutLockRef.current) return;
+        if (timeoutLockRef.current || gameOverRef.current) return;
         timeoutLockRef.current = true;
         handleWrong();
-        startNewRound();
+        if (livesRef.current > 1) {
+            startNewRound();
+        }
     };
 
     const endGame = () => {
@@ -181,7 +185,7 @@ const Game = () => {
     };
 
     const handleGuess = (selectedOption) => {
-        if (gameOverRef.current) return;
+        if (gameOverRef.current || timeoutLockRef.current) return;
         const correct = currentQuestionType === 'name' ? (selectedOption.name === answer.name) : (selectedOption === answer);
         if (correct) {
             setScore((s) => s + 100);

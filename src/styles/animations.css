@@ -100,6 +100,62 @@
   }
 }
 
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-10px) rotate(90deg);
+  }
+  50% {
+    transform: translateY(0px) rotate(180deg);
+  }
+  75% {
+    transform: translateY(-5px) rotate(270deg);
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.06;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.15;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes flash {
+  0%, 100% {
+    opacity: 0.04;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.12;
+    transform: scale(1.1) rotate(5deg);
+  }
+}
+
+@keyframes flicker {
+  0%, 100% {
+    opacity: 0.05;
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    opacity: 0.08;
+    transform: scale(1.05) rotate(2deg);
+  }
+  50% {
+    opacity: 0.12;
+    transform: scale(1.1) rotate(-2deg);
+  }
+  75% {
+    opacity: 0.08;
+    transform: scale(1.05) rotate(1deg);
+  }
+}
+
 @keyframes slideInLeft {
   from {
     opacity: 0;

@@ -2,62 +2,61 @@ import { useState, useEffect, useRef } from "react";
 
 const useTimer = (initial, onEnd, active = true) => {
     const [time, setTime] = useState(initial);
-    const ref = useRef(null);
+    const timeoutRef = useRef(null);
     const onEndRef = useRef(onEnd);
+    const endedRef = useRef(false);
 
-    // Update the callback ref when onEnd changes
     useEffect(() => {
         onEndRef.current = onEnd;
     }, [onEnd]);
 
+    const clearTimer = () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
+    };
+
+    const tick = () => {
+        timeoutRef.current = setTimeout(() => {
+            setTime((current) => {
+                if (current <= 1) {
+                    if (!endedRef.current) {
+                        endedRef.current = true;
+                        clearTimer();
+                        onEndRef.current?.();
+                    }
+                    return 0;
+                }
+                tick();
+                return current - 1;
+            });
+        }, 1000);
+    };
+
     useEffect(() => {
-        if(!active) {
-            if (ref.current) {
-                clearInterval(ref.current);
-                ref.current = null;
-            }
+        if (!active) {
+            clearTimer();
+            endedRef.current = false;
             return;
         }
 
-        ref.current = setInterval(() => {
-            setTime((t) => {
-                if (t <= 1) {
-                    clearInterval(ref.current);
-                    ref.current = null;
-                    onEndRef.current?.();
-                    return 0;
-                }
-                return t - 1;
-            });
-        }, 1000);
+        endedRef.current = false;
+        tick();
 
         return () => {
-            if (ref.current) {
-                clearInterval(ref.current);
-                ref.current = null;
-            }
+            clearTimer();
+            endedRef.current = false;
         };
     }, [active]);
 
     const reset = (newTime) => {
-        if (ref.current) {
-            clearInterval(ref.current);
-            ref.current = null;
-        }
+        clearTimer();
+        endedRef.current = false;
         setTime(newTime);
 
         if (active) {
-            ref.current = setInterval(() => {
-                setTime((t) => {
-                    if (t <= 1) {
-                        clearInterval(ref.current);
-                        ref.current = null;
-                        onEndRef.current?.();
-                        return 0;
-                    }
-                    return t - 1;
-                });
-            }, 1000);
+            tick();
         }
     };
 

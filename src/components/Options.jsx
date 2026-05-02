@@ -3,14 +3,14 @@ const Options = ({options = [], onGuess, disabled}) => {
     
     return(
         <div className="options-container">
-            {options.map((opt, i) => (
+            {options.filter(opt => opt != null).map((opt, i) => (
                 <button 
                     key={i} 
                     className="option-button"
                     onClick={() => onGuess(opt)} 
                     disabled={disabled}
                 >
-                    {typeof opt === 'string' ? capitalizeFirst(opt) : capitalizeFirst(opt.name)}
+                    {typeof opt === 'string' ? capitalizeFirst(opt) : (opt?.name ? capitalizeFirst(opt.name) : 'Unknown')}
                 </button>
             ))}
         </div>

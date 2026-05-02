@@ -2,33 +2,30 @@ import { useState, useEffect, useRef } from "react";
 
 const useTimer = (initial, onEnd, active = true) => {
     const [time, setTime] = useState(initial);
-    const timeoutRef = useRef(null);
+    const intervalRef = useRef(null);
     const onEndRef = useRef(onEnd);
-    const endedRef = useRef(false);
 
     useEffect(() => {
         onEndRef.current = onEnd;
     }, [onEnd]);
 
     const clearTimer = () => {
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
         }
     };
 
-    const tick = () => {
-        timeoutRef.current = setTimeout(() => {
+    const startTimer = () => {
+        clearTimer();
+
+        intervalRef.current = setInterval(() => {
             setTime((current) => {
                 if (current <= 1) {
-                    if (!endedRef.current) {
-                        endedRef.current = true;
-                        clearTimer();
-                        onEndRef.current?.();
-                    }
+                    clearTimer();
+                    onEndRef.current?.();
                     return 0;
                 }
-                tick();
                 return current - 1;
             });
         }, 1000);
@@ -37,26 +34,24 @@ const useTimer = (initial, onEnd, active = true) => {
     useEffect(() => {
         if (!active) {
             clearTimer();
-            endedRef.current = false;
             return;
         }
 
-        endedRef.current = false;
-        tick();
+        if (time > 0) {
+            startTimer();
+        }
 
         return () => {
             clearTimer();
-            endedRef.current = false;
         };
     }, [active]);
 
     const reset = (newTime) => {
         clearTimer();
-        endedRef.current = false;
         setTime(newTime);
 
         if (active) {
-            tick();
+            startTimer();
         }
     };
 

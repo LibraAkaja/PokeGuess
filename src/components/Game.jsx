@@ -7,11 +7,12 @@ import useTimer from "../hooks/useTimer";
 import Timer from "./Timer";
 import Lives from "./Lives";
 import Options from "./Options";
+import { playAudio } from "./Options";
 import Scoreboard from "./Scoreboard";
 import getIdFromUrl from "../utils/getIdFromUrl";
-import mouseHoverAudio from "../assets/Tap or Hover Btn.WAV";
-import mouseClickAudio from "../assets/Mouse Click.WAV";
-import gameStartAudio from "../assets/game-start-6104.mp3";
+import mouseHoverAudio from "../assets/Hover-Btn.WAV";
+import mouseClickAudio from "../assets/Mouse-Click.WAV";
+import gameStartAudio from "../assets/session-start.mp3";
 
 const SESSION_OPTIONS = {
     "1 min": 60,
@@ -46,6 +47,7 @@ const Game = () => {
     const timeoutLockRef = useRef(false);
     const handleTimeoutRef = useRef();
     const endGameRef = useRef();
+    const lastTimeoutRoundRef = useRef(-1);
 
     useEffect(() => {
         scoreRef.current = score;
@@ -73,11 +75,13 @@ const Game = () => {
             }
             return l - 1;
         });
-    };
+    }; 
 
     const handleTimeout = () => {
-        if (timeoutLockRef.current || gameOverRef.current) return;
-        timeoutLockRef.current = true;
+        const currentRound = roundCountRef.current;
+        if(lastTimeoutRoundRef.current === currentRound) return; // Prevent multiple timeouts for the same round
+        lastTimeoutRoundRef.current = currentRound;
+        if (gameOverRef.current) return;
         handleWrong();
         if (livesRef.current > 1) {
             startNewRound();
@@ -112,13 +116,6 @@ const Game = () => {
         }
     }, [pokemonList]);
 
-    const playAudio = (a) => {
-        const aud = () => {
-            return <audio src={a}/>;
-        };
-        aud.play();
-    };
-
     const startSession = () => {
         setScore(0);
         setLives(5);
@@ -133,7 +130,6 @@ const Game = () => {
         setRoundCount(nextRound);
         const isType = gameType === 'type' || (gameType === 'mix' && nextRound % 2 === 0);
         setCurrentQuestionType(isType ? 'type' : 'name');
-        timeoutLockRef.current = false;
 
         if(!isType){
             const opts = getRandomOptions(pokemonList, 4);
@@ -217,9 +213,9 @@ const Game = () => {
                         <>
                             <p style={{color:"black"}}>Choose your game mode:</p>
                             <div className="options-container">
-                                <button className="option-button decorative-button" onClick={() => {setGameType('name'); setHomeStep('selectSession'); playAudio(mouseClickAudio)}}>Name</button>
-                                <button className="option-button decorative-button" onClick={() => {setGameType('type'); setHomeStep('selectSession')}}>Type</button>
-                                <button className="option-button decorative-button" onClick={() => {setGameType('mix'); setHomeStep('selectSession')}}>Combined</button>
+                                <button className="option-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setGameType('name'); setHomeStep('selectSession'); playAudio(mouseClickAudio);}}>Name</button>
+                                <button className="option-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setGameType('type'); setHomeStep('selectSession'); playAudio(mouseClickAudio);}}>Type</button>
+                                <button className="option-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setGameType('mix'); setHomeStep('selectSession'); playAudio(mouseClickAudio);}}>Mixed</button>
                             </div>
                         </>
                     )}
@@ -228,26 +224,26 @@ const Game = () => {
                         <>
                             <h2 className="panel-title">Choose Session Mode</h2>
                             <div className="options-container">
-                                <button className="option-button decorative-button" onClick={() => {setSessionMode('1 min'); setHomeStep('ready')}}>1 min</button>
-                                <button className="option-button decorative-button" onClick={() => {setSessionMode('2 min'); setHomeStep('ready')}}>2 min</button>
-                                <button className="option-button decorative-button" onClick={() => {setSessionMode('Endless'); setHomeStep('ready')}}>Endless</button>
+                                <button className="option-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setSessionMode('1 min'); setHomeStep('ready'); playAudio(mouseClickAudio)}}>1 min</button>
+                                <button className="option-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setSessionMode('2 min'); setHomeStep('ready'); playAudio(mouseClickAudio);}}>2 min</button>
+                                <button className="option-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setSessionMode('Endless'); setHomeStep('ready'); playAudio(mouseClickAudio);}}>Endless</button>
                             </div>
-                            <button className="back-button" onClick={() => setHomeStep('selectGameType')}>← Back</button>
+                            <button className="back-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setHomeStep('selectGameType'); playAudio(mouseClickAudio)}}>← Back</button>
                         </>
                     )}
                     
                     {homeStep === 'ready' && (
                         <>
                             <h2 className="panel-title">Ready?</h2>
-                            <button className="start-button decorative-button" onClick={() => {startSession(); setHomeStep('countdown'); countdownTimer.reset(3);}}>START</button>
-                            <button className="back-button" onClick={() => setHomeStep('selectSession')}>← Back</button>
+                            <button className="start-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {startSession(); setHomeStep('countdown'); countdownTimer.reset(3); playAudio(mouseClickAudio);}}>START</button>
+                            <button className="back-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setHomeStep('selectSession'); playAudio(mouseClickAudio);}}>← Back</button>
                         </>
                     )}
                     
                     {homeStep === 'countdown' && (
                         <>
                             <h2 className="panel-title">Starting in...</h2>
-                            <div className="countdown decorative-countdown">{countdownTimer.time}</div>
+                            <div className="countdown decorative-countdown">{countdownTimer.time}</div>{countdownTimer.time === 0? playAudio(gameStartAudio) : null}
                         </>
                     )}
                 </div>
@@ -266,7 +262,7 @@ const Game = () => {
                         <div className="score-label">High Score</div>
                         <div className="final-score">{highScore}</div>
                     </div>
-                    <button className="play-again-button decorative-button" onClick={() => {setPanel('home'); setHomeStep('selectGameType')}}>Play Again</button>
+                    <button className="play-again-button decorative-button" onMouseOver={() => playAudio(mouseHoverAudio)} onClick={() => {setPanel('home'); setHomeStep('selectGameType'); playAudio(mouseClickAudio);}}>Play Again</button>
                 </div>
             </div>
         );

@@ -1,64 +1,43 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, use } from "react";
 
 const useTimer = (initial, onEnd, active = true) => {
     const [time, setTime] = useState(initial);
-    const ref = useRef(null);
+    const [tick, setTick] = useState(0);
+    const intervalRef = useRef(null);
     const onEndRef = useRef(onEnd);
 
-    // Update the callback ref when onEnd changes
     useEffect(() => {
         onEndRef.current = onEnd;
     }, [onEnd]);
 
-    useEffect(() => {
-        if(!active) {
-            if (ref.current) {
-                clearInterval(ref.current);
-                ref.current = null;
-            }
-            return;
+    const clearTimer = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
         }
+    };
 
-        ref.current = setInterval(() => {
-            setTime((t) => {
-                if (t <= 1) {
-                    clearInterval(ref.current);
-                    ref.current = null;
+    useEffect(() => {
+        clearTimer();
+        if (!active) return;
+
+        intervalRef.current = setInterval(() => {
+            setTime((prev) => {
+                if(prev <= 1){
+                    clearTimer();
                     onEndRef.current?.();
                     return 0;
                 }
-                return t - 1;
+                return prev - 1;
             });
-        }, 1000);
-
-        return () => {
-            if (ref.current) {
-                clearInterval(ref.current);
-                ref.current = null;
-            }
-        };
-    }, [active]);
+        },1000);
+        
+        return clearTimer;
+    }, [active, tick]);
 
     const reset = (newTime) => {
-        if (ref.current) {
-            clearInterval(ref.current);
-            ref.current = null;
-        }
         setTime(newTime);
-
-        if (active) {
-            ref.current = setInterval(() => {
-                setTime((t) => {
-                    if (t <= 1) {
-                        clearInterval(ref.current);
-                        ref.current = null;
-                        onEndRef.current?.();
-                        return 0;
-                    }
-                    return t - 1;
-                });
-            }, 1000);
-        }
+        setTick((t) => t + 1); // Force restart the timer
     };
 
     return { time, reset };

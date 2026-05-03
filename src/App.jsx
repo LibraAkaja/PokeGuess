@@ -5,6 +5,17 @@ function App() {
 
   return (
     <>
+      {/* Background Decorations */}
+      <div className="bg-decoration bg-pokeball-1"></div>
+      <div className="bg-decoration bg-pokeball-2"></div>
+      <div className="bg-decoration bg-star-1"></div>
+      <div className="bg-decoration bg-star-2"></div>
+      <div className="bg-decoration bg-star-3"></div>
+      <div className="bg-decoration bg-star-4"></div>
+      <div className="bg-decoration bg-star-5"></div>
+      <div className="bg-decoration bg-flame-1"></div>
+      <div className="bg-decoration bg-flame-2"></div>
+      
       <img src={GameLogo} className='game-logo'/>
       <Game/>
     </>

@@ -27,6 +27,10 @@
     background: linear-gradient(135deg, #FFD700 0%, #DC143C 40%, #4169E1 100%);
   }
 
+  .bg-decoration {
+    display: none; /* Hide decorations on smaller screens for better performance */
+  }
+
   h1 {
     font-size: 2rem;
   }
@@ -54,6 +58,20 @@
   .option-button {
     padding: 12px 24px;
     font-size: 0.95rem;
+  }
+
+  .decorative-countdown {
+    font-size: 3rem;
+    padding: 15px;
+  }
+
+  .bg-decoration {
+    display: none; /* Hide decorations on smaller screens for better performance */
+  }
+
+  .back-button {
+    padding: 8px 16px;
+    font-size: 0.8rem;
   }
 
   .scoreboard,
@@ -88,6 +106,13 @@
     font-size: 3rem;
   }
 
+  .decorative-countdown {
+    font-size: 2.5rem;
+    width: 100px;
+    height: 100px;
+    padding: 20px;
+  }
+
   .game-over-title {
     font-size: 2rem;
   }
@@ -96,6 +121,11 @@
   .play-again-button {
     padding: 15px 30px;
     font-size: 1rem;
+  }
+
+  .back-button {
+    padding: 6px 12px;
+    font-size: 0.7rem;
   }
 }
 
@@ -145,7 +175,7 @@
 
   .home-panel {
     gap: 20px;
-    padding: 30px 0;
+    /* padding: 30px 0; */
   }
 
   .panel-title {
@@ -226,6 +256,13 @@
     font-size: 2.5rem;
   }
 
+  .decorative-countdown {
+    font-size: 2rem;
+    width: 80px;
+    height: 80px;
+    padding: 15px;
+  }
+
   .game-over-title {
     font-size: 1.7rem;
   }
@@ -279,6 +316,13 @@
 
   .countdown {
     font-size: 2rem;
+  }
+
+  .decorative-countdown {
+    font-size: 1.8rem;
+    width: 70px;
+    height: 70px;
+    padding: 12px;
   }
 
   .start-button,

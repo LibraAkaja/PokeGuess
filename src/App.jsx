@@ -18,6 +18,17 @@ function App() {
       
       <img src={GameLogo} className='game-logo'/>
       <Game/>
+
+      <footer className='game-footer'>
+        <div className='footer-content'>
+          <p className='footer-main'>
+            Powered by{" "}
+            <a href='https://pokeapi.co/' target='_blank' rel='noopener noreferrer'>PokéAPI</a>
+          </p>
+          <p className='footer-secondary'>Pokémon © Nintendo / Game Freak / Creatures Inc.</p>
+          <p className='footer-note'>Not affiliated with or endorsed by Nintendo, Game Freak, or Creatures Inc.</p>
+        </div>
+      </footer>
     </>
   )
 }

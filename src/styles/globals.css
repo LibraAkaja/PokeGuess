@@ -251,7 +251,7 @@ button:disabled {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -265,4 +265,96 @@ button:disabled {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--tertiary);
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.footer-main {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.footer-secondary {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.footer-note {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+.game-footer::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 8px;
+  background: linear-gradient(
+    to right,
+    var(--pokemon-red) 50%,
+    var(--pokemon-white) 50%
+  );
+  border-radius: 2px;
+}
+
+.game-footer {
+  width: 100%;
+  margin-top: 40px;
+  padding: 15px 10px;
+  text-align: center;
+
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+
+  border-top: 2px solid var(--pokemon-red);
+  border-radius: 12px 12px 0 0;
+
+  box-shadow: var(--shadow-light);
+
+  font-size: 0.9rem;
+  color: var(--text-light);
+
+  transition: var(--transition-medium);
+}
+
+.game-footer p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.game-footer a {
+  color: var(--pokemon-red);
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.game-footer a:hover {
+  color: var(--pokemon-blue);
+  text-decoration: underline;
+}
+
+.game-footer:hover {
+  box-shadow: var(--shadow-medium);
+}
+
+@media (prefers-color-scheme: dark) {
+  .game-footer {
+    background: rgba(0, 0, 0, 0.4);
+    border-top: 2px solid var(--pokemon-yellow);
+  }
+
+  .game-footer a {
+    color: var(--pokemon-yellow);
+  }
+
+  .game-footer a:hover {
+    color: var(--pokemon-blue);
+  }
 }

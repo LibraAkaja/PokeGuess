@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, use } from "react";
 
 const useTimer = (initial, onEnd, active = true) => {
     const [time, setTime] = useState(initial);
+    const [tick, setTick] = useState(0);
     const intervalRef = useRef(null);
     const onEndRef = useRef(onEnd);
 
@@ -16,43 +17,27 @@ const useTimer = (initial, onEnd, active = true) => {
         }
     };
 
-    const startTimer = () => {
+    useEffect(() => {
         clearTimer();
+        if (!active) return;
 
         intervalRef.current = setInterval(() => {
-            setTime((current) => {
-                if (current <= 1) {
+            setTime((prev) => {
+                if(prev <= 1){
                     clearTimer();
                     onEndRef.current?.();
                     return 0;
                 }
-                return current - 1;
+                return prev - 1;
             });
-        }, 1000);
-    };
-
-    useEffect(() => {
-        if (!active) {
-            clearTimer();
-            return;
-        }
-
-        if (time > 0) {
-            startTimer();
-        }
-
-        return () => {
-            clearTimer();
-        };
-    }, [active]);
+        },1000);
+        
+        return clearTimer;
+    }, [active, tick]);
 
     const reset = (newTime) => {
-        clearTimer();
         setTime(newTime);
-
-        if (active) {
-            startTimer();
-        }
+        setTick((t) => t + 1); // Force restart the timer
     };
 
     return { time, reset };

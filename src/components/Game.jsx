@@ -7,12 +7,12 @@ import useTimer from "../hooks/useTimer";
 import Timer from "./Timer";
 import Lives from "./Lives";
 import Options from "./Options";
-import { playAudio } from "./Options";
 import Scoreboard from "./Scoreboard";
 import getIdFromUrl from "../utils/getIdFromUrl";
 import mouseHoverAudio from "../assets/Hover-Btn.WAV";
 import mouseClickAudio from "../assets/Mouse-Click.WAV";
 import gameStartAudio from "../assets/session-start.mp3";
+import soundIcon from "../assets/PokeSound.png";
 
 const SESSION_OPTIONS = {
     "1 min": 60,
@@ -38,6 +38,7 @@ const Game = () => {
     const [currentPokemonName, setCurrentPokemonName] = useState('');
     const [roundCount, setRoundCount] = useState(0);
     const [homeStep, setHomeStep] = useState('selectGameType'); // 'selectGameType', 'selectSession', 'ready', 'countdown'
+    const [soundOn, setSoundOn] = useState(false);
     
     const scoreRef = useRef(score);
     const gameOverRef = useRef(gameOver);
@@ -202,10 +203,16 @@ const Game = () => {
         );
     }
 
+    const playAudio = (a) => {
+        const aud = new Audio(a);
+        soundOn? aud.play(): null;
+    };
+
     if(panel === 'home'){
         return (
             <div className="game-container">
                 <div className="game-panel home-panel decorative-panel">
+                    <img src={soundIcon} alt="Sound Icon" className="sound-icon" style={{width:'31px', position:'absolute', top:'10px', right:'10px', cursor:'pointer', filter: soundOn ? 'none' : 'grayscale(100%)'}} onClick={() => setSoundOn(!soundOn)}/>
                     <h1 className="panel-title">PokéGuess</h1>
                     <p className="subtitle">Let the Pokémon quiz begin!</p>
                     
@@ -305,7 +312,7 @@ const Game = () => {
                     ) : (
                         <h3 className="question-text">What type is <strong>{capitalize(currentPokemonName)}</strong>?</h3>
                     )}
-                    <Options options={options} onGuess={handleGuess}/>
+                    <Options soundOn={soundOn} playAudio={playAudio} options={options} onGuess={handleGuess}/>
                 </div>
             </div>
         </div>

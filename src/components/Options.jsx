@@ -1,12 +1,7 @@
 import mouseHoverAudio from "../assets/Hover-Btn.WAV";
 import mouseClickAudio from "../assets/Mouse-Click.WAV";
 
-export const playAudio = (a) => {
-    const aud = new Audio(a);
-    aud.play();
-};
-
-const Options = ({options = [], onGuess, disabled}) => {
+const Options = ({soundOn, playAudio, options = [], onGuess, disabled}) => {
     const capitalizeFirst = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     
     return(

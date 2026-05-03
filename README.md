@@ -186,6 +186,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **React Community** for excellent documentation and tools
 - **RealFaviconGenerator** (https://realfavicongenerator.net/) for favicon generation
 - **TextStudio** (https://textstudio.com/) for banner and logo design
+- **Game Sounds** Pokémon Games, [Pixabay](https://pixabay.com/)
 
 ## ⚠️ Disclaimer
 

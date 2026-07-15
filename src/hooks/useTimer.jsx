@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef, use } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const useTimer = (initial, onEnd, active = true) => {
     const [time, setTime] = useState(initial);
-    const [tick, setTick] = useState(0);
     const intervalRef = useRef(null);
     const onEndRef = useRef(onEnd);
+    const activeRef = useRef(active);
 
     useEffect(() => {
         onEndRef.current = onEnd;
     }, [onEnd]);
+
+    useEffect(() => {
+        activeRef.current = active;
+    }, [active]);
 
     const clearTimer = () => {
         if (intervalRef.current) {
@@ -17,27 +21,40 @@ const useTimer = (initial, onEnd, active = true) => {
         }
     };
 
-    useEffect(() => {
+    const startInterval = () => {
         clearTimer();
-        if (!active) return;
-
-        intervalRef.current = setInterval(() => {
+        intervalRef.current = window.setInterval(() => {
             setTime((prev) => {
-                if(prev <= 1){
+                if (typeof prev === 'number' && prev <= 1) {
                     clearTimer();
                     onEndRef.current?.();
                     return 0;
                 }
-                return prev - 1;
+                if (typeof prev === 'number') return prev - 1;
+                return prev;
             });
-        },1000);
-        
+        }, 1000);
+    };
+
+    useEffect(() => {
+        clearTimer();
+        if (!active) return;
+        startInterval();
         return clearTimer;
-    }, [active, tick]);
+    }, [active]);
 
     const reset = (newTime) => {
+        // Always clear any existing interval, set the time,
+        // then start the interval on the next tick to avoid
+        // races when called from within the interval callback.
+        clearTimer();
         setTime(newTime);
-        setTick((t) => t + 1); // Force restart the timer
+        if (activeRef.current) {
+            setTimeout(() => {
+                // ensure still active before starting
+                if (activeRef.current) startInterval();
+            }, 0);
+        }
     };
 
     return { time, reset };

@@ -1,20 +1,23 @@
 # PokéGuess 🎮
 
-A modern, interactive Pokémon quiz game built with React that tests your Pokémon knowledge through multiple challenging game modes.
+An interactive Pokémon quiz built with React and Vite. The game presents a variety of question types and session modes, and tracks score, lives, and high score progress across sessions.
 
 ![PokéGuess Banner](/src/assets/PokeGame.png)
 
 ## ✨ Features
 
 ### 🎯 Game Modes
-- **Name Mode**: Guess the Pokémon from its image
-- **Type Mode**: Identify the Pokémon's type
-- **Combined Mode**: Mix of both name and type questions
+- **Name**: Guess the Pokémon from its image
+- **Type**: Identify the Pokémon's primary type
+- **Generation**: Choose the generation the Pokémon belongs to
+- **Ability**: Select the Pokémon's main ability
+- **Evolution**: Find the evolved or pre-evolved form
+- **Hybrid Mix**: Rotates through name, type, generation, ability, and evolution questions
 
 ### ⏱️ Session Options
 - **1 Minute**: Fast-paced challenge
 - **2 Minutes**: Extended gameplay
-- **Endless**: Unlimited playtime
+- **Endless**: Play until lives run out
 
 ### 🏆 Game Features
 - **Scoring System**: Earn 100 points per correct answer
@@ -22,14 +25,14 @@ A modern, interactive Pokémon quiz game built with React that tests your Pokém
 - **High Score Tracking**: Persistent local storage
 - **Round Timer**: 10 seconds per question
 - **Session Timer**: Time-based gameplay modes
-- **Responsive Design**: Optimized for all devices
+- **Responsive Design**: Optimized for desktop and mobile
 
 ### 🎨 User Experience
-- **Smooth Animations**: Engaging visual feedback
-- **Optimized Image Loading**: Instant rendering using direct sprite URLs
-- **Progressive Web App**: Installable on mobile devices
-- **Offline Support**: Cached Pokémon data
-- **Accessibility**: Keyboard and touch-friendly
+- **Smooth Animations**: Engaging visual transitions
+- **Image Preloading**: Reduces pause time between questions
+- **Sound Effects**: Hover and click audio feedback
+- **Responsive Controls**: Button-driven UI with touch-friendly layout
+- **Accessibility**: Simple, readable overlays and clear feedback
 
 ## 🌐 Live Demo
 
@@ -78,7 +81,7 @@ The built files will be in the `dist/` directory.
 - **API**: PokéAPI (https://pokeapi.co/)
 - **State Management**: React hooks
 - **Data Persistence**: Local Storage
-- **PWA Features**: Service Worker ready
+- **Web App Support**: Manifest metadata and icons
 
 ## 🧠 Key Concepts
 
@@ -126,14 +129,15 @@ PokeGuess/
 
 ## 🎮 How to Play
 
-1. **Choose Game Mode**: Select between Name, Type, or Combined
-2. **Select Session**: Pick 1 minute, 2 minutes, or endless mode
+1. **Choose Game Mode**: Select from Name, Type, Generation, Ability, Evolution, or Hybrid Mix
+2. **Select Session**: Pick 1 minute, 2 minutes, or Endless
 3. **Start Playing**:
    - Answer questions within 10 seconds
    - Correct answers: +100 points
-   - Wrong answers: Lose a life
-   - Game ends when time runs out or lives reach zero
-4. **Beat Your High Score**: Try to achieve the highest score!
+   - Wrong answers: Lose one life
+   - Game ends when lives reach zero or the session timer expires
+4. **Game Over Options**: Restart with the same settings or return to the main menu to choose new modes
+5. **Beat Your High Score**: Try to top your best run!
 
 ## 🔧 Development
 
@@ -161,11 +165,7 @@ PokéGuess uses the [PokeAPI](https://pokeapi.co/) to fetch Pokémon data:
 
 ## 📱 Progressive Web App
 
-PokéGuess is a PWA with:
-- **Web App Manifest**: Installable on mobile devices
-- **Responsive Icons**: Optimized for all screen sizes
-- **Offline Data**: Cached Pokémon information
-- **Fast Loading**: Optimized images and preloading
+This project includes a web app manifest and icons for installable metadata. There is no service worker configured in this repository, so offline caching is not currently enabled.
 
 ## 🤝 Contributing
 

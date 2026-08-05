@@ -1,7 +1,7 @@
 import mouseHoverAudio from "../assets/Hover-Btn.WAV";
 import mouseClickAudio from "../assets/Mouse-Click.WAV";
 
-const Options = ({soundOn, playAudio, options = [], onGuess, disabled}) => {
+const Options = ({playAudio, options = [], onGuess, disabled}) => {
     const capitalizeFirst = (str) => {
         if (typeof str !== 'string' || str.length === 0) {
             return '';

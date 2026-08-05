@@ -23,13 +23,16 @@ An interactive Pokémon quiz built with React and Vite. The game presents a vari
 - **Scoring System**: Earn 100 points per correct answer
 - **Lives System**: 5 lives with penalty for wrong answers
 - **High Score Tracking**: Persistent local storage
-- **Round Timer**: 10 seconds per question
-- **Session Timer**: Time-based gameplay modes
+- **Round Timer**: 10 seconds per question, pauses while question/image is still loading
+- **Session Timer**: Time-based gameplay modes, also pauses during loading states
 - **Responsive Design**: Optimized for desktop and mobile
 
 ### 🎨 User Experience
 - **Smooth Animations**: Engaging visual transitions
-- **Image Preloading**: Reduces pause time between questions
+- **Buffered Round Pipeline**: Prepares upcoming rounds in advance for faster transitions
+- **Decode-Aware Image Preloading**: Ensures at least one sprite source is ready before a round is presented
+- **Adaptive Slow-Network Fallback**: Uses fast fallback rounds if generation exceeds latency threshold
+- **Startup Warmup**: Staged prefetch with bounded concurrency to reduce early-round lag
 - **Sound Effects**: Hover and click audio feedback
 - **Responsive Controls**: Button-driven UI with touch-friendly layout
 - **Accessibility**: Simple, readable overlays and clear feedback
@@ -88,9 +91,25 @@ The built files will be in the `dist/` directory.
 - React state management with hooks
 - Custom timer implementation using `useEffect`, `useRef`
 - Local storage persistence
-- Optimized asset loading (no redundant API calls)
+- Optimized asset loading and preconnect hints
 - Dynamic game state handling
 - Fallback image handling strategy
+
+## ⚡ Latency Handling Architecture
+
+- **Loading-aware timers**: Round/session timers stop while round data or sprite is not ready.
+- **Prepared queue**: Upcoming rounds are generated and buffered ahead of time.
+- **Session caches**: Metadata and evolution candidate caches reduce repeated work within a play session.
+- **Adaptive thresholding**: Slow-round fallback threshold and buffer depth are auto-tuned at runtime.
+- **Sprite readiness gating**: Primary and fallback sprites are preloaded; round becomes active when a usable image is ready.
+- **Network warmup**: DNS-prefetch and preconnect are enabled for API and sprite hosts.
+- **Dev telemetry**: Console metrics report build latency, image prep latency, fallback rate, and buffer hit rate.
+
+### Dev Telemetry Notes
+
+- Telemetry logs are emitted in development mode only.
+- Summary logs appear periodically and include runtime tuning state.
+- These logs help tune latency thresholds for different network conditions.
 
 ## 📁 Project Structure
 
@@ -161,7 +180,8 @@ PokéGuess uses the [PokeAPI](https://pokeapi.co/) to fetch Pokémon data:
 
 - **Data Source**: `https://pokeapi.co/api/v2/pokemon?limit=1000`
 - **Images**: Official artwork and dream world sprites
-- **Caching**: Local storage for improved performance
+- **Caching**: Local storage and in-memory session caches for faster repeated round generation
+- **Delivery Optimizations**: DNS-prefetch/preconnect for PokéAPI and sprite CDN hosts
 
 ## 📱 Progressive Web App
 

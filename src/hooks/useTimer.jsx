@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 const useTimer = (initial, onEnd, active = true) => {
     const [time, setTime] = useState(initial);
@@ -14,14 +14,14 @@ const useTimer = (initial, onEnd, active = true) => {
         activeRef.current = active;
     }, [active]);
 
-    const clearTimer = () => {
+    const clearTimer = useCallback(() => {
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
         }
-    };
+    }, []);
 
-    const startInterval = () => {
+    const startInterval = useCallback(() => {
         clearTimer();
         intervalRef.current = window.setInterval(() => {
             setTime((prev) => {
@@ -34,14 +34,14 @@ const useTimer = (initial, onEnd, active = true) => {
                 return prev;
             });
         }, 1000);
-    };
+    }, [clearTimer]);
 
     useEffect(() => {
         clearTimer();
         if (!active) return;
         startInterval();
         return clearTimer;
-    }, [active]);
+    }, [active, clearTimer, startInterval]);
 
     const reset = (newTime) => {
         // Always clear any existing interval, set the time,

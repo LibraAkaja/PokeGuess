@@ -159,13 +159,13 @@ PokeGuess/
 5. **Beat Your High Score**: Try to top your best run!
 
 ## Screenshots
-### Laptop (L)
+### Laptop
 <p align="center">
    <img src="ScreenshotL1.png" width="49%" alt="Laptop gameplay screenshot 1">
    <img src="ScreenshotL2.png" width="49%" alt="Laptop gameplay screenshot 2">
 </p>
 
-### Mobile (M)
+### Mobile
 <p align="center">
    <img src="ScreenshotM1.jpeg" width="30%" alt="Mobile gameplay screenshot 1">
    <img src="ScreenshotM2.jpeg" width="30%" alt="Mobile gameplay screenshot 2">

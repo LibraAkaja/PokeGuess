@@ -32,6 +32,7 @@ const STARTUP_PREFETCH_HEAD_COUNT = 36;
 const STARTUP_PREFETCH_RANDOM_COUNT = 24;
 const STARTUP_PREFETCH_BATCH_SIZE = 6;
 const STARTUP_IMAGE_PREFETCH_COUNT = 24;
+const ROUND_TIME_BONUS_MULTIPLIER = 10;
 
 const getOptionValue = (option) => {
     if (typeof option === 'string') return option;
@@ -998,7 +999,9 @@ const Game = () => {
         const selectedValue = getOptionValue(selectedOption).toLowerCase();
         const isCorrect = correctValue === selectedValue;
         if (isCorrect) {
-            setScore((s) => s + 100);
+            const remainingSeconds = Math.max(0, Number(roundTimer.time) || 0);
+            const timeBonus = remainingSeconds * ROUND_TIME_BONUS_MULTIPLIER;
+            setScore((s) => s + 100 + timeBonus);
         } else {
             const shouldContinue = handleWrong();
             if (!shouldContinue) return;

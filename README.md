@@ -20,7 +20,7 @@ An interactive Pokémon quiz built with React and Vite. The game presents a vari
 - **Endless**: Play until lives run out
 
 ### 🏆 Game Features
-- **Scoring System**: Earn 100 points per correct answer
+- **Scoring System**: Earn 100 points per correct answer plus a time bonus (`remaining round seconds × 10`)
 - **Lives System**: 5 lives with penalty for wrong answers
 - **High Score Tracking**: Persistent local storage
 - **Round Timer**: 10 seconds per question, pauses while question/image is still loading
@@ -152,7 +152,7 @@ PokeGuess/
 2. **Select Session**: Pick 1 minute, 2 minutes, or Endless
 3. **Start Playing**:
    - Answer questions within 10 seconds
-   - Correct answers: +100 points
+   - Correct answers: +100 points + time bonus (`remaining round seconds × 10`)
    - Wrong answers: Lose one life
    - Game ends when lives reach zero or the session timer expires
 4. **Game Over Options**: Restart with the same settings or return to the main menu to choose new modes

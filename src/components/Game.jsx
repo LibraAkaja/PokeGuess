@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import fetchPokemon, { fetchPokemonDetails, fetchEvolutionChain, preloadPokemonDetails } from "../utils/fetchPokemon";
+import fetchPokemon, { fetchPokemonDetails, fetchEvolutionChain } from "../utils/fetchPokemon";
 import getPokemonImage, { preloadPokemonImage } from "../utils/getPokemonImage";
 import getRandomOptions, { shuffleArray, buildOptionSet, capitalizeText } from "../utils/helpers";
 import useLocalStorage from "../hooks/useLocalStorage";
@@ -20,14 +20,19 @@ const SESSION_OPTIONS = {
     Endless: Infinity
 };
 
-const MODE_LABELS = {
-    name: 'Name',
-    type: 'Typing',
-    generation: 'Generation Match',
-    ability: 'Ability',
-    evolution: 'Evolution',
-    mix: 'Hybrid Mix'
-};
+const ROUND_BUFFER_SIZE = 2;
+const SLOW_ROUND_THRESHOLD_MS = 1500;
+const TELEMETRY_SAMPLE_SIZE = 30;
+const TELEMETRY_LOG_EVERY_ROUNDS = 5;
+const MIN_ROUND_BUFFER_SIZE = 2;
+const MAX_ROUND_BUFFER_SIZE = 4;
+const MIN_SLOW_ROUND_THRESHOLD_MS = 1000;
+const MAX_SLOW_ROUND_THRESHOLD_MS = 2400;
+const STARTUP_PREFETCH_HEAD_COUNT = 36;
+const STARTUP_PREFETCH_RANDOM_COUNT = 24;
+const STARTUP_PREFETCH_BATCH_SIZE = 6;
+const STARTUP_IMAGE_PREFETCH_COUNT = 24;
+const ROUND_TIME_BONUS_MULTIPLIER = 10;
 
 const getOptionValue = (option) => {
     if (typeof option === 'string') return option;
@@ -49,6 +54,24 @@ const formatGenerationName = (generationName = '') => {
         .join(' ');
 };
 
+const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+const average = (values = []) => {
+    if (!values.length) return 0;
+    const sum = values.reduce((acc, value) => acc + value, 0);
+    return sum / values.length;
+};
+
+const runInBatches = async (items, batchSize, worker, shouldStop = () => false) => {
+    if (!Array.isArray(items) || !items.length) return;
+    const size = Math.max(1, batchSize);
+    for (let i = 0; i < items.length; i += size) {
+        if (shouldStop()) return;
+        const batch = items.slice(i, i + size);
+        await Promise.allSettled(batch.map((item) => worker(item)));
+    }
+};
+
 const Game = () => {
     const [pokemonList, setPokemonList] = useState([]);
     const [image, setImage] = useState(null);
@@ -63,7 +86,6 @@ const Game = () => {
     const [panel, setPanel] = useState('home');
     const [gameType, setGameType] = useState('name');
     const [currentQuestionType, setCurrentQuestionType] = useState('name');
-    const [currentPokemonName, setCurrentPokemonName] = useState('');
     const [questionText, setQuestionText] = useState("Who's that Pokémon?");
     const [roundCount, setRoundCount] = useState(0);
     const [countdownActive, setCountdownActive] = useState(false);
@@ -81,6 +103,28 @@ const Game = () => {
     const preloadTimeoutRef = useRef(null);
     const roundLoadingRef = useRef(false);
     const sessionQuestionHistoryRef = useRef([]);
+    const roundQueueRef = useRef([]);
+    const queueFillRunningRef = useRef(false);
+    const pendingRoundPromisesRef = useRef(new Map());
+    const imageReadyCacheRef = useRef(new Map());
+    const pendingImageLoadRef = useRef(new Map());
+    const pokemonMetaCacheRef = useRef(new Map());
+    const evolutionEntriesCacheRef = useRef(new Map());
+    const evolutionCandidatesCacheRef = useRef(new Map());
+    const audioGuardRef = useRef({ src: null, locked: false });
+    const preloadHintLinkRef = useRef(null);
+    const telemetryRef = useRef({
+        roundBuildMs: [],
+        imagePrepMs: [],
+        roundsServed: 0,
+        bufferHits: 0,
+        bufferMisses: 0,
+        adaptiveFallbackHits: 0,
+        queuedRounds: 0
+    });
+    const runtimeBufferSizeRef = useRef(ROUND_BUFFER_SIZE);
+    const runtimeThresholdMsRef = useRef(SLOW_ROUND_THRESHOLD_MS);
+    const telemetryEnabled = import.meta.env.DEV;
 
     useEffect(() => {
         livesRef.current = lives;
@@ -91,8 +135,10 @@ const Game = () => {
 
     const isPlaying = panel === 'playing';
     const sessionLength = SESSION_OPTIONS[sessionMode];
-    const roundTimer = useTimer(10, () => handleTimeoutRef.current?.(), isPlaying);
-    const sessionTimer = useTimer(sessionLength, () => endGameRef.current?.(), isPlaying && sessionLength !== Infinity);
+    const hasQuestionData = options.length > 0 && Boolean(answer);
+    const timersActive = isPlaying && !roundLoading && imgLoaded && hasQuestionData;
+    const roundTimer = useTimer(10, () => handleTimeoutRef.current?.(), timersActive);
+    const sessionTimer = useTimer(sessionLength, () => endGameRef.current?.(), timersActive && sessionLength !== Infinity);
     const handleCountdownComplete = () => {
         setCountdownActive(false);
         if (soundOn) {
@@ -101,6 +147,7 @@ const Game = () => {
         }
         setPanel('playing');
         setTimeout(() => {
+            void fillRoundBuffer(roundTokenRef.current);
             void startNewRound();
         }, 50);
     };
@@ -135,36 +182,120 @@ const Game = () => {
         }
     };
 
-    handleTimeoutRef.current = handleTimeout;
-    endGameRef.current = endGame;
+    useEffect(() => {
+        handleTimeoutRef.current = handleTimeout;
+        endGameRef.current = endGame;
+    });
 
     useEffect(() => {
         fetchPokemon().then(setPokemonList);
     },[]);
-
-    useEffect(() => {
-        if (pokemonList.length > 0) {
-            void preloadPokemonDetails(pokemonList, 16);
-            setTimeout(() => {
-                for (let i = 0; i < Math.min(10, pokemonList.length); i++) {
-                    const id = getIdFromUrl(pokemonList[i].url);
-                    preloadPokemonImage(id);
-                }
-            }, 1500);
-        }
-    }, [pokemonList]);
 
     const startSession = () => {
         setScore(0);
         setLives(5);
         setRoundCount(0);
         setQuestionText("Who's that Pokémon?");
+        setImgLoaded(false);
+        setImage(null);
+        setFallbackImage(null);
+        setOptions([]);
+        setAnswer(null);
         lastTimeoutRoundRef.current = -1;
         roundTokenRef.current += 1;
         roundLoadingRef.current = false;
         sessionQuestionHistoryRef.current = [];
+        roundQueueRef.current = [];
+        queueFillRunningRef.current = false;
+        pendingRoundPromisesRef.current.clear();
+        pokemonMetaCacheRef.current.clear();
+        evolutionEntriesCacheRef.current.clear();
+        evolutionCandidatesCacheRef.current.clear();
+        telemetryRef.current = {
+            roundBuildMs: [],
+            imagePrepMs: [],
+            roundsServed: 0,
+            bufferHits: 0,
+            bufferMisses: 0,
+            adaptiveFallbackHits: 0,
+            queuedRounds: 0
+        };
+        runtimeBufferSizeRef.current = ROUND_BUFFER_SIZE;
+        runtimeThresholdMsRef.current = SLOW_ROUND_THRESHOLD_MS;
         roundTimer.reset(10);
         sessionTimer.reset(SESSION_OPTIONS[sessionMode]);
+    };
+
+    const pushTelemetrySample = (bucket, value) => {
+        if (!telemetryEnabled || typeof value !== 'number' || Number.isNaN(value)) {
+            return;
+        }
+
+        bucket.push(value);
+        if (bucket.length > TELEMETRY_SAMPLE_SIZE) {
+            bucket.shift();
+        }
+    };
+
+    const logTelemetrySummary = () => {
+        if (!telemetryEnabled) return;
+        const t = telemetryRef.current;
+        if (!t.roundsServed || t.roundsServed % TELEMETRY_LOG_EVERY_ROUNDS !== 0) {
+            return;
+        }
+
+        const bufferTotal = t.bufferHits + t.bufferMisses;
+        const bufferHitRate = bufferTotal ? (t.bufferHits / bufferTotal) * 100 : 0;
+        const fallbackRate = t.roundsServed ? (t.adaptiveFallbackHits / t.roundsServed) * 100 : 0;
+
+        console.info('[PokeGuess telemetry]', {
+            roundsServed: t.roundsServed,
+            bufferHitRate: `${bufferHitRate.toFixed(1)}%`,
+            adaptiveFallbackRate: `${fallbackRate.toFixed(1)}%`,
+            avgRoundBuildMs: Number(average(t.roundBuildMs).toFixed(1)),
+            avgImagePrepMs: Number(average(t.imagePrepMs).toFixed(1)),
+            queuedRounds: t.queuedRounds,
+            currentBufferSize: runtimeBufferSizeRef.current,
+            currentThresholdMs: runtimeThresholdMsRef.current
+        });
+    };
+
+    const tuneRuntimeSettings = () => {
+        if (!telemetryEnabled) return;
+        const t = telemetryRef.current;
+        if (!t.roundsServed || t.roundsServed % TELEMETRY_LOG_EVERY_ROUNDS !== 0) {
+            return;
+        }
+
+        const avgBuildMs = average(t.roundBuildMs);
+        const bufferTotal = t.bufferHits + t.bufferMisses;
+        const bufferHitRate = bufferTotal ? (t.bufferHits / bufferTotal) * 100 : 0;
+        const fallbackRate = t.roundsServed ? (t.adaptiveFallbackHits / t.roundsServed) * 100 : 0;
+
+        let nextThreshold = runtimeThresholdMsRef.current;
+        let nextBufferSize = runtimeBufferSizeRef.current;
+
+        if (fallbackRate > 20 || avgBuildMs > 1400 || bufferHitRate < 45) {
+            nextThreshold = Math.min(MAX_SLOW_ROUND_THRESHOLD_MS, nextThreshold + 150);
+            nextBufferSize = Math.min(MAX_ROUND_BUFFER_SIZE, nextBufferSize + 1);
+        } else if (fallbackRate < 8 && avgBuildMs < 900 && bufferHitRate > 75) {
+            nextThreshold = Math.max(MIN_SLOW_ROUND_THRESHOLD_MS, nextThreshold - 100);
+            nextBufferSize = Math.max(MIN_ROUND_BUFFER_SIZE, nextBufferSize - 1);
+        }
+
+        const changed = nextThreshold !== runtimeThresholdMsRef.current || nextBufferSize !== runtimeBufferSizeRef.current;
+        runtimeThresholdMsRef.current = nextThreshold;
+        runtimeBufferSizeRef.current = nextBufferSize;
+
+        if (changed) {
+            console.info('[PokeGuess tuning]', {
+                currentBufferSize: runtimeBufferSizeRef.current,
+                currentThresholdMs: runtimeThresholdMsRef.current,
+                fallbackRate: `${fallbackRate.toFixed(1)}%`,
+                bufferHitRate: `${bufferHitRate.toFixed(1)}%`,
+                avgBuildMs: Number(avgBuildMs.toFixed(1))
+            });
+        }
     };
 
     const preloadRandomImages = () => {
@@ -205,33 +336,275 @@ const Game = () => {
         };
     };
 
-    const startNewRound = async () => {
-        if (panelRef.current !== 'playing' || roundLoadingRef.current) {
-            return null;
+    const setImagePreloadHint = (url) => {
+        if (!url || typeof document === 'undefined') return;
+
+        if (!preloadHintLinkRef.current) {
+            const link = document.createElement('link');
+            link.rel = 'preload';
+            link.as = 'image';
+            link.crossOrigin = 'anonymous';
+            document.head.appendChild(link);
+            preloadHintLinkRef.current = link;
         }
 
-        const nextRound = roundCountRef.current + 1;
-        const roundToken = roundTokenRef.current + 1;
-        roundTokenRef.current = roundToken;
-        setRoundCount(nextRound);
-        roundLoadingRef.current = true;
-        setRoundLoading(true);
-        setImgLoaded(false);
-        setImage(null);
-        setFallbackImage(null);
-        setOptions([]);
-        setAnswer(null);
-        setCurrentPokemonName('');
-        setQuestionText('Loading question...');
-        roundTimer.reset(10);
+        if (preloadHintLinkRef.current.href !== url) {
+            preloadHintLinkRef.current.href = url;
+        }
+    };
 
-        const selectedMode = gameType === 'mix'
-            ? ['name', 'type', 'generation', 'ability', 'evolution'][((nextRound - 1) % 5)]
-            : gameType;
+    const preloadSprite = async (url) => {
+        if (!url) return false;
+
+        if (imageReadyCacheRef.current.get(url)) {
+            return true;
+        }
+
+        if (pendingImageLoadRef.current.has(url)) {
+            return pendingImageLoadRef.current.get(url);
+        }
+
+        const loadPromise = new Promise((resolve) => {
+            const img = new Image();
+            let settled = false;
+
+            const complete = (ok) => {
+                if (settled) return;
+                settled = true;
+                if (ok) {
+                    imageReadyCacheRef.current.set(url, true);
+                }
+                resolve(ok);
+            };
+
+            img.onload = () => complete(true);
+            img.onerror = () => complete(false);
+            img.src = url;
+
+            if (img.complete) {
+                complete(Boolean(img.naturalWidth));
+            }
+        });
+
+        pendingImageLoadRef.current.set(url, loadPromise);
+
+        try {
+            return await loadPromise;
+        } finally {
+            if (pendingImageLoadRef.current.get(url) === loadPromise) {
+                pendingImageLoadRef.current.delete(url);
+            }
+        }
+    };
+
+    const prepareRoundImage = async (roundData) => {
+        if (!roundData) return null;
+        const start = nowMs();
+
+        const primary = roundData.image || null;
+        const fallback = roundData.fallbackImage || null;
+
+        const primaryReady = await preloadSprite(primary);
+        if (primaryReady) {
+            return {
+                ...roundData,
+                image: primary,
+                fallbackImage: fallback,
+                imagePrepared: true,
+                imagePrepMs: nowMs() - start
+            };
+        }
+
+        const fallbackReady = await preloadSprite(fallback);
+        if (fallbackReady) {
+            return {
+                ...roundData,
+                image: fallback,
+                fallbackImage: fallback,
+                imagePrepared: true,
+                imagePrepMs: nowMs() - start
+            };
+        }
+
+        const resolved = primary || fallback;
+        return {
+            ...roundData,
+            image: resolved,
+            fallbackImage: fallback || primary || null,
+            imagePrepared: false,
+            imagePrepMs: nowMs() - start
+        };
+    };
+
+    useEffect(() => {
+        if (!pokemonList.length) return;
+
+        let cancelled = false;
+        const isCancelled = () => cancelled;
+
+        const warmup = async () => {
+            const head = pokemonList.slice(0, Math.min(STARTUP_PREFETCH_HEAD_COUNT, pokemonList.length));
+            const randomPool = shuffleArray(pokemonList).slice(0, Math.min(STARTUP_PREFETCH_RANDOM_COUNT, pokemonList.length));
+            const warmupTargets = [];
+            const seen = new Set();
+
+            for (const pokemon of [...head, ...randomPool]) {
+                const key = pokemon?.url || pokemon?.name;
+                if (!key || seen.has(key)) continue;
+                seen.add(key);
+                warmupTargets.push(pokemon);
+            }
+
+            await runInBatches(
+                warmupTargets,
+                STARTUP_PREFETCH_BATCH_SIZE,
+                async (pokemon) => {
+                    if (isCancelled()) return;
+                    await fetchPokemonDetails(pokemon).catch(() => null);
+                },
+                isCancelled
+            );
+
+            const imageTargets = warmupTargets.slice(0, Math.min(STARTUP_IMAGE_PREFETCH_COUNT, warmupTargets.length));
+            await runInBatches(
+                imageTargets,
+                STARTUP_PREFETCH_BATCH_SIZE,
+                async (pokemon) => {
+                    if (isCancelled()) return;
+                    const id = getIdFromUrl(pokemon.url);
+                    const { official, dream } = getPokemonImage(id);
+                    await preloadSprite(official);
+                    await preloadSprite(dream);
+                    preloadPokemonImage(id);
+                },
+                isCancelled
+            );
+        };
+
+        void warmup();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pokemonList]);
+
+    const getPokemonMeta = async (pokemon) => {
+        const key = pokemon?.url || pokemon?.name;
+        if (!key) return null;
+
+        if (pokemonMetaCacheRef.current.has(key)) {
+            return pokemonMetaCacheRef.current.get(key);
+        }
+
+        const detail = await fetchPokemonDetails(pokemon).catch(() => null);
+        const meta = {
+            name: pokemon?.name || '',
+            detail,
+            type: detail?.types?.[0] ?? pokemon?.types?.[0] ?? 'normal',
+            generationName: detail?.species?.generation?.name ?? 'generation-i',
+            abilities: detail?.abilities ?? [],
+            evolutionChainUrl: detail?.species?.evolution_chain?.url ?? null,
+        };
+
+        pokemonMetaCacheRef.current.set(key, meta);
+        return meta;
+    };
+
+    const getEvolutionEntriesForChain = async (chainUrl) => {
+        if (!chainUrl) return [];
+
+        if (evolutionEntriesCacheRef.current.has(chainUrl)) {
+            return evolutionEntriesCacheRef.current.get(chainUrl);
+        }
+
+        try {
+            const data = await fetchEvolutionChain(chainUrl);
+            const entries = [];
+            const visit = (node, parent = null) => {
+                entries.push({
+                    name: node?.species?.name,
+                    parent: parent?.species?.name ?? null,
+                    children: (node?.evolves_to ?? []).map((child) => child?.species?.name).filter(Boolean)
+                });
+                (node?.evolves_to ?? []).forEach((child) => visit(child, node));
+            };
+            visit(data?.chain);
+            evolutionEntriesCacheRef.current.set(chainUrl, entries);
+            return entries;
+        } catch (error) {
+            console.warn('Evolution chain lookup failed.', error);
+            evolutionEntriesCacheRef.current.set(chainUrl, []);
+            return [];
+        }
+    };
+
+    const buildEvolutionCandidates = async (questionType) => {
+        if (evolutionCandidatesCacheRef.current.has(questionType)) {
+            return evolutionCandidatesCacheRef.current.get(questionType);
+        }
+
+        const candidates = [];
+        const shuffledCandidates = shuffleArray(pokemonList);
+        for (const pokemon of shuffledCandidates) {
+            const meta = await getPokemonMeta(pokemon);
+            const chainUrl = meta?.evolutionChainUrl;
+            if (!chainUrl) continue;
+
+            const entries = await getEvolutionEntriesForChain(chainUrl);
+            if (!entries.length) continue;
+
+            for (const entry of entries) {
+                if (!entry?.name) continue;
+
+                if (questionType === 'evolved') {
+                    if (!entry.children?.length) continue;
+                    const correctName = entry.children[0];
+                    candidates.push({
+                        pokemon,
+                        entryName: entry.name,
+                        correctName,
+                        prompt: `Which Pokémon is the evolved form of ${capitalizeText(entry.name)}?`,
+                        uniqueKey: `${questionType}:${entry.name}:${correctName}`
+                    });
+                } else {
+                    if (!entry.parent) continue;
+                    const correctName = entry.parent;
+                    candidates.push({
+                        pokemon,
+                        entryName: entry.name,
+                        correctName,
+                        prompt: `Which Pokémon is the pre-evolved form of ${capitalizeText(entry.name)}?`,
+                        uniqueKey: `${questionType}:${entry.name}:${correctName}`
+                    });
+                }
+            }
+        }
+
+        const deduped = [];
+        const seen = new Set();
+        for (const item of candidates) {
+            if (seen.has(item.uniqueKey)) continue;
+            seen.add(item.uniqueKey);
+            deduped.push(item);
+        }
+
+        evolutionCandidatesCacheRef.current.set(questionType, deduped);
+        return deduped;
+    };
+
+    const getModeForRound = (roundNumber) => {
+        if (gameType !== 'mix') return gameType;
+        const mixedModes = ['name', 'type', 'generation', 'ability', 'evolution'];
+        return mixedModes[(roundNumber - 1) % mixedModes.length];
+    };
+
+    const buildRoundData = async (roundNumber) => {
+        const roundBuildStart = nowMs();
+        const selectedMode = getModeForRound(roundNumber);
+        const evolutionQuestionKind = roundNumber % 2 === 0 ? 'evolved' : 'pre-evolved';
 
         try {
             let roundData = null;
-            const evolutionQuestionKind = nextRound % 2 === 0 ? 'evolved' : 'pre-evolved';
             switch (selectedMode) {
                 case 'type':
                     roundData = await buildTypeRound();
@@ -255,23 +628,193 @@ const Game = () => {
                 roundData = await fallbackRound();
             }
 
+            const prepared = await prepareRoundImage({
+                ...roundData,
+                mode: roundData.mode || selectedMode
+            });
+
+            return {
+                ...prepared,
+                buildMs: nowMs() - roundBuildStart,
+                adaptiveFallbackUsed: false
+            };
+        } catch (error) {
+            console.error('Unable to generate a round.', error);
+            const fallbackData = await fallbackRound();
+            const prepared = await prepareRoundImage({
+                ...fallbackData,
+                mode: fallbackData.mode || 'name'
+            });
+
+            return {
+                ...prepared,
+                buildMs: nowMs() - roundBuildStart,
+                adaptiveFallbackUsed: false
+            };
+        }
+    };
+
+    const buildRoundDataOnce = async (roundNumber) => {
+        if (pendingRoundPromisesRef.current.has(roundNumber)) {
+            return pendingRoundPromisesRef.current.get(roundNumber);
+        }
+
+        const promise = buildRoundData(roundNumber);
+        pendingRoundPromisesRef.current.set(roundNumber, promise);
+
+        try {
+            return await promise;
+        } finally {
+            if (pendingRoundPromisesRef.current.get(roundNumber) === promise) {
+                pendingRoundPromisesRef.current.delete(roundNumber);
+            }
+        }
+    };
+
+    const getRoundDataWithAdaptiveFallback = async (roundNumber) => {
+        const primaryPromise = buildRoundDataOnce(roundNumber)
+            .then((data) => ({ timedOut: false, data }))
+            .catch(() => ({ timedOut: false, data: null }));
+
+        const timeoutPromise = new Promise((resolve) => {
+            setTimeout(() => resolve({ timedOut: true }), runtimeThresholdMsRef.current);
+        });
+
+        const raceResult = await Promise.race([primaryPromise, timeoutPromise]);
+        if (!raceResult?.timedOut) {
+            return raceResult?.data ?? null;
+        }
+
+        const quickFallback = await fallbackRound();
+        const preparedFallback = await prepareRoundImage({
+            ...quickFallback,
+            mode: quickFallback.mode || 'name'
+        });
+
+        if (telemetryEnabled) {
+            telemetryRef.current.adaptiveFallbackHits += 1;
+        }
+
+        return {
+            ...preparedFallback,
+            buildMs: runtimeThresholdMsRef.current,
+            adaptiveFallbackUsed: true
+        };
+    };
+
+    const pullBufferedRound = (roundNumber) => {
+        const index = roundQueueRef.current.findIndex((entry) => entry.roundNumber === roundNumber);
+        if (index < 0) return null;
+        const [entry] = roundQueueRef.current.splice(index, 1);
+        return entry?.data ?? null;
+    };
+
+    async function fillRoundBuffer(sessionToken = roundTokenRef.current) {
+        if (queueFillRunningRef.current || panelRef.current !== 'playing') {
+            return;
+        }
+
+        queueFillRunningRef.current = true;
+        try {
+            while (
+                sessionToken === roundTokenRef.current
+                && panelRef.current === 'playing'
+                && roundQueueRef.current.length < runtimeBufferSizeRef.current
+            ) {
+                const lastQueuedRound = roundQueueRef.current.length
+                    ? roundQueueRef.current[roundQueueRef.current.length - 1].roundNumber
+                    : roundCountRef.current;
+                const nextRoundNumber = lastQueuedRound + 1;
+                const data = await buildRoundDataOnce(nextRoundNumber);
+
+                if (sessionToken !== roundTokenRef.current || panelRef.current !== 'playing') {
+                    return;
+                }
+
+                if (!data || nextRoundNumber <= roundCountRef.current) {
+                    continue;
+                }
+
+                const alreadyQueued = roundQueueRef.current.some((entry) => entry.roundNumber === nextRoundNumber);
+                if (!alreadyQueued) {
+                    roundQueueRef.current.push({ roundNumber: nextRoundNumber, data });
+                    setImagePreloadHint(data?.image || data?.fallbackImage || '');
+                    if (telemetryEnabled) {
+                        telemetryRef.current.queuedRounds += 1;
+                    }
+                }
+            }
+        } finally {
+            queueFillRunningRef.current = false;
+        }
+    }
+
+    async function startNewRound() {
+        if (panelRef.current !== 'playing' || roundLoadingRef.current) {
+            return null;
+        }
+
+        const nextRound = roundCountRef.current + 1;
+        const roundToken = roundTokenRef.current + 1;
+        roundTokenRef.current = roundToken;
+        setRoundCount(nextRound);
+        roundLoadingRef.current = true;
+        setRoundLoading(true);
+        setImgLoaded(false);
+        setImage(null);
+        setFallbackImage(null);
+        setOptions([]);
+        setAnswer(null);
+        setQuestionText('Loading question...');
+        roundTimer.reset(10);
+        const currentToken = roundToken;
+
+        try {
+            let roundData = pullBufferedRound(nextRound);
+            const usedBuffer = Boolean(roundData);
+            if (!roundData) {
+                roundData = await getRoundDataWithAdaptiveFallback(nextRound);
+            }
+
             if (roundToken !== roundTokenRef.current || panelRef.current !== 'playing') {
                 return null;
             }
 
-            setCurrentQuestionType(roundData.mode || selectedMode);
-            setCurrentPokemonName(roundData.subjectName || '');
+            setCurrentQuestionType(roundData.mode || getModeForRound(nextRound));
             setOptions(roundData.options || []);
             setAnswer(roundData.answer || null);
-            setImage(roundData.image || null);
+            const activeImage = roundData.image || roundData.fallbackImage || null;
+            setImage(activeImage);
             setFallbackImage(roundData.fallbackImage || null);
+            if (activeImage) {
+                setImagePreloadHint(activeImage);
+            }
             setQuestionText(roundData.questionText || "Who's that Pokémon?");
             setImageAlt(roundData.imageAlt || 'Pokémon');
+            if (roundData.imagePrepared || !activeImage) {
+                setImgLoaded(true);
+            }
             roundLoadingRef.current = false;
             setRoundLoading(false);
             if (roundData.image) {
                 preloadRandomImages();
             }
+
+            if (telemetryEnabled) {
+                const t = telemetryRef.current;
+                t.roundsServed += 1;
+                if (usedBuffer) {
+                    t.bufferHits += 1;
+                } else {
+                    t.bufferMisses += 1;
+                }
+                pushTelemetrySample(t.roundBuildMs, roundData.buildMs);
+                pushTelemetrySample(t.imagePrepMs, roundData.imagePrepMs);
+                tuneRuntimeSettings();
+                logTelemetrySummary();
+            }
+
+            void fillRoundBuffer(currentToken);
             return roundData;
         } catch (error) {
             console.error('Unable to generate a round.', error);
@@ -280,18 +823,22 @@ const Game = () => {
             }
             const fallbackData = await fallbackRound();
             setCurrentQuestionType('name');
-            setCurrentPokemonName(fallbackData.subjectName || '');
             setOptions(fallbackData.options || []);
             setAnswer(fallbackData.answer || null);
-            setImage(fallbackData.image || null);
+            const fallbackActiveImage = fallbackData.image || fallbackData.fallbackImage || null;
+            setImage(fallbackActiveImage);
             setFallbackImage(fallbackData.fallbackImage || null);
             setQuestionText(fallbackData.questionText || "Who's that Pokémon?");
             setImageAlt(fallbackData.imageAlt || 'Pokémon');
+            if (!fallbackActiveImage) {
+                setImgLoaded(true);
+            }
             roundLoadingRef.current = false;
             setRoundLoading(false);
+            void fillRoundBuffer(currentToken);
             return fallbackData;
         }
-    };
+    }
 
     const buildNameRound = async () => {
         const opts = getRandomOptions(pokemonList, 4);
@@ -322,8 +869,8 @@ const Game = () => {
     const buildTypeRound = async () => {
         if (!pokemonList.length) return null;
         const correctPokemon = pokemonList[Math.floor(Math.random() * pokemonList.length)];
-        const detail = await fetchPokemonDetails(correctPokemon).catch(() => null);
-        const correctType = detail?.types?.[0] ?? correctPokemon?.types?.[0] ?? 'normal';
+        const meta = await getPokemonMeta(correctPokemon);
+        const correctType = meta?.type ?? 'normal';
         const typePool = ['normal', 'fire', 'water', 'electric', 'grass', 'ice', 'fighting', 'poison', 'ground', 'flying', 'psychic', 'bug', 'rock', 'ghost', 'dragon', 'dark', 'steel', 'fairy'].filter((type) => type !== correctType);
         const typeOptions = buildOptionSet(
             { value: correctType, label: capitalizeText(correctType) },
@@ -348,8 +895,8 @@ const Game = () => {
     const buildGenerationRound = async () => {
         if (!pokemonList.length) return null;
         const chosenPokemon = pokemonList[Math.floor(Math.random() * pokemonList.length)];
-        const detail = await fetchPokemonDetails(chosenPokemon).catch(() => null);
-        const generationName = detail?.species?.generation?.name ?? 'generation-i';
+        const meta = await getPokemonMeta(chosenPokemon);
+        const generationName = meta?.generationName ?? 'generation-i';
         const correctLabel = formatGenerationName(generationName);
         const generationPool = ['Generation I', 'Generation II', 'Generation III', 'Generation IV', 'Generation V', 'Generation VI', 'Generation VII', 'Generation VIII', 'Generation IX'].filter((label) => label !== correctLabel);
         const options = buildOptionSet(
@@ -375,9 +922,9 @@ const Game = () => {
     const buildAbilityRound = async () => {
         if (!pokemonList.length) return null;
         const chosenPokemon = pokemonList[Math.floor(Math.random() * pokemonList.length)];
-        const detail = await fetchPokemonDetails(chosenPokemon).catch(() => null);
         const abilityPool = ['blaze', 'torrent', 'overgrow', 'static', 'levitate', 'pressure', 'intimidate', 'swarm', 'run-away', 'adaptability', 'flame-body', 'cute-charm'];
-        const abilities = detail?.abilities ?? [];
+        const meta = await getPokemonMeta(chosenPokemon);
+        const abilities = meta?.abilities ?? [];
         const correctAbility = abilities[0] ?? abilityPool[Math.floor(Math.random() * abilityPool.length)];
         const extraPool = [...new Set([...abilityPool, ...(abilities.filter(Boolean))])];
         const options = buildOptionSet(
@@ -404,58 +951,18 @@ const Game = () => {
         if (!pokemonList.length) return null;
 
         const questionType = questionKind === 'pre-evolved' ? 'pre-evolved' : 'evolved';
-        const shuffledCandidates = shuffleArray(pokemonList);
-        let selectedEntry = null;
-        let chosenPokemon = null;
-        let prompt = '';
-        let correctName = '';
+        const candidates = await buildEvolutionCandidates(questionType);
+        if (!candidates.length) return null;
 
-        for (const pokemon of shuffledCandidates) {
-            const detail = await fetchPokemonDetails(pokemon).catch(() => null);
-            const evolutionChainUrl = detail?.species?.evolution_chain?.url;
-            if (!evolutionChainUrl) continue;
+        const available = candidates.filter((candidate) => !sessionQuestionHistoryRef.current.includes(candidate.uniqueKey));
+        const pool = available.length ? available : candidates;
+        const selected = pool[Math.floor(Math.random() * pool.length)];
+        if (!selected?.pokemon || !selected?.correctName) return null;
 
-            try {
-                const data = await fetchEvolutionChain(evolutionChainUrl);
-                const entries = [];
-                const visit = (node, parent = null) => {
-                    entries.push({
-                        name: node?.species?.name,
-                        parent: parent?.species?.name ?? null,
-                        children: (node?.evolves_to ?? []).map((child) => child?.species?.name).filter(Boolean)
-                    });
-                    (node?.evolves_to ?? []).forEach((child) => visit(child, node));
-                };
-                visit(data.chain);
+        const chosenPokemon = selected.pokemon;
+        const correctName = selected.correctName;
 
-                const matchingEntry = entries.find((entry) => {
-                    if (questionType === 'evolved') return entry.children?.length > 0;
-                    return Boolean(entry.parent);
-                });
-
-                if (!matchingEntry) continue;
-
-                const uniqueKey = `${questionType}:${matchingEntry.name}:${questionType === 'evolved' ? matchingEntry.children[0] : matchingEntry.parent}`;
-                if (sessionQuestionHistoryRef.current.includes(uniqueKey)) continue;
-
-                chosenPokemon = pokemon;
-                selectedEntry = matchingEntry;
-                if (questionType === 'evolved') {
-                    correctName = matchingEntry.children[0];
-                    prompt = `Which Pokémon is the evolved form of ${capitalizeText(matchingEntry.name)}?`;
-                } else {
-                    correctName = matchingEntry.parent;
-                    prompt = `Which Pokémon is the pre-evolved form of ${capitalizeText(matchingEntry.name)}?`;
-                }
-                break;
-            } catch (error) {
-                console.warn('Evolution chain lookup failed.', error);
-            }
-        }
-
-        if (!chosenPokemon || !selectedEntry || !correctName) return null;
-
-        const uniqueKey = `${questionType}:${selectedEntry.name}:${correctName}`;
+        const uniqueKey = selected.uniqueKey;
         sessionQuestionHistoryRef.current.push(uniqueKey);
         if (sessionQuestionHistoryRef.current.length > 8) {
             sessionQuestionHistoryRef.current.shift();
@@ -479,7 +986,7 @@ const Game = () => {
             answer: { value: correctName, label: capitalizeText(correctName) },
             image: official,
             fallbackImage: dream,
-            questionText: prompt,
+            questionText: selected.prompt,
             imageAlt: chosenPokemon.name,
             subjectName: chosenPokemon.name,
             mode: 'evolution'
@@ -492,7 +999,9 @@ const Game = () => {
         const selectedValue = getOptionValue(selectedOption).toLowerCase();
         const isCorrect = correctValue === selectedValue;
         if (isCorrect) {
-            setScore((s) => s + 100);
+            const remainingSeconds = Math.max(0, Number(roundTimer.time) || 0);
+            const timeBonus = remainingSeconds * ROUND_TIME_BONUS_MULTIPLIER;
+            setScore((s) => s + 100 + timeBonus);
         } else {
             const shouldContinue = handleWrong();
             if (!shouldContinue) return;
@@ -514,16 +1023,20 @@ const Game = () => {
     const playAudio = (a) => {
         if (!soundOn) return;
         try {
-            const now = Date.now();
-            if (!playAudio.last) playAudio.last = { src: null, ts: 0 };
-            const last = playAudio.last;
-            if (last.src === a && now - last.ts < 300) {
+            const guard = audioGuardRef.current;
+            if (guard.src === a && guard.locked) {
                 return;
             }
             const aud = new Audio(a);
             aud.play().catch(() => {});
-            playAudio.last = { src: a, ts: now };
-        } catch (e) {
+            guard.src = a;
+            guard.locked = true;
+            setTimeout(() => {
+                if (audioGuardRef.current.src === a) {
+                    audioGuardRef.current.locked = false;
+                }
+            }, 300);
+        } catch {
             // ignore audio errors
         }
     };
@@ -646,9 +1159,12 @@ const Game = () => {
                             loading="eager"
                             className={''}
                             onError={(e) => {
-                                if (e.target.src !== fallbackImage) {
+                                if (fallbackImage && e.target.src !== fallbackImage) {
                                     e.target.src = fallbackImage;
+                                    return;
                                 }
+                                // Unblock timers if both primary and fallback images fail.
+                                setImgLoaded(true);
                             }}
                             onLoad={(e) => {
                                 setImgLoaded(true);
@@ -658,7 +1174,7 @@ const Game = () => {
                         />
                     </div>
                     <h3 className="question-text">{questionText}</h3>
-                    <Options soundOn={soundOn} playAudio={playAudio} options={options} onGuess={handleGuess} disabled={roundLoading}/>
+                    <Options playAudio={playAudio} options={options} onGuess={handleGuess} disabled={roundLoading}/>
                 </div>
             </div>
         </div>
